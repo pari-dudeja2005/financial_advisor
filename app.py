@@ -1,59 +1,76 @@
 import os
 import streamlit as st
+from dotenv import load_dotenv
+from langchain.prompts import ChatPromptTemplate
+from langchain.chains import LLMChain
 from langchain_openai import ChatOpenAI
-from langchain.prompts import PromptTemplate
-from langchain_core.runnables import RunnableSequence
 
-# 🔐 Set your OpenRouter API Key here
-os.environ["OPENAI_API_KEY"] = "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"  # Replace with your actual key
+# Load environment variables from .env
+load_dotenv()
 
-# Streamlit App UI
-st.set_page_config(page_title="Smart Financial Advisor 💰", layout="centered")
-st.title("💬 Smart Financial Advisor")
+# Get API key from environment variable
+openai_api_key = os.getenv("OPENROUTER_API_KEY")
 
-st.markdown("Get personalized financial advice based on your profile.")
+# Validate API key
+if not openai_api_key:
+    st.error("❌ OPENAI_API_KEY not found in .env file!")
+    st.stop()
 
-# Input fields
-income = st.number_input("📥 Monthly Income (₹)", min_value=0)
-age = st.number_input("🎂 Age", min_value=18, max_value=100)
-savings = st.number_input("💰 Current Savings (₹)", min_value=0)
-debt = st.number_input("📉 Existing Debt (₹)", min_value=0)
-risk = st.selectbox("⚖️ Risk Appetite", ["Low", "Medium", "High"])
+# Initialize LLM using OpenRouter
+llm = ChatOpenAI(
+    model="gpt-3.5-turbo",
+    base_url="https://openrouter.ai/api/v1",
+    openai_api_key=openai_api_key
+)
 
-# Submit button
-if st.button("💡 Get Financial Advice"):
-    with st.spinner("Generating personalized financial advice..."):
+# Define the prompt
+template = """
+You are a helpful AI financial advisor.
 
-        # Create LangChain prompt
-        template = """
-        You are a smart financial advisor. Based on the following user profile, give personalized financial advice:
-        - Monthly Income: ₹{income}
-        - Age: {age}
-        - Current Savings: ₹{savings}
-        - Existing Debt: ₹{debt}
-        - Risk Appetite: {risk}
+The user provides:
+- Their monthly income
+- Monthly expenses
+- Any existing loans (type and amount)
+- Financial goal (e.g., buying a house, saving for education, etc.)
 
-        Respond in clear bullet points with practical suggestions.
-        """
-        prompt = PromptTemplate.from_template(template)
+Based on this information, provide a detailed and friendly financial advice plan. Suggest:
+- Budgeting improvements
+- Investment strategies
+- Loan suggestions or caution
+- Savings tips
 
-        # Initialize LLM
-        llm = ChatOpenAI(
-            model="gpt-3.5-turbo",
-            base_url="https://openrouter.ai/api/v1",
-        )
+### USER DATA ###
+Income: {income}
+Expenses: {expenses}
+Loan Details: {loan_details}
+Financial Goal: {goal}
+"""
 
-        chain = prompt | llm  # RunnableSequence
+prompt = ChatPromptTemplate.from_template(template)
+chain = LLMChain(llm=llm, prompt=prompt)
 
-        # Run chain with user input
-        response = chain.invoke({
-            "income": income,
-            "age": age,
-            "savings": savings,
-            "debt": debt,
-            "risk": risk,
-        })
+# Streamlit UI
+st.set_page_config(page_title="💸 Financial Advisor", layout="centered")
+st.title("💬 Financial Advisor ")
 
-        # Display the result
-        st.markdown("### 🧠 Advice:")
-        st.write(response.content)
+with st.form("advisor_form"):
+    income = st.text_input("Your Monthly Income (in ₹)", placeholder="e.g., 50000")
+    expenses = st.text_input("Your Monthly Expenses (in ₹)", placeholder="e.g., 20000")
+    loan_details = st.text_area("Existing Loans (type and amount)", placeholder="e.g., Education Loan ₹5,00,000")
+    goal = st.text_area("Your Financial Goal", placeholder="e.g., Buy a house in 5 years")
+
+    submitted = st.form_submit_button("Get Advice")
+
+    if submitted:
+        if not income or not expenses or not goal:
+            st.warning("Please fill in all required fields.")
+        else:
+            with st.spinner("Generating your financial advice..."):
+                response = chain.invoke({
+                    "income": income,
+                    "expenses": expenses,
+                    "loan_details": loan_details,
+                    "goal": goal
+                })
+                st.success("✅ Here's your personalized financial advice:")
+                st.markdown(response["text"])
