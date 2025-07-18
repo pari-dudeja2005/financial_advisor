@@ -1,76 +1,91 @@
 import os
-import streamlit as st
 from dotenv import load_dotenv
-from langchain.prompts import ChatPromptTemplate
-from langchain.chains import LLMChain
+import streamlit as st
 from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from langchain_core.runnables import RunnableSequence
 
 # Load environment variables from .env
 load_dotenv()
-
-# Get API key from environment variable
-openai_api_key = os.getenv("OPENROUTER_API_KEY")
-
-# Validate API key
-if not openai_api_key:
-    st.error("❌ OPENAI_API_KEY not found in .env file!")
+API_KEY = os.getenv("OPENROUTER_API_KEY")
+if not API_KEY:
+    st.error("⚠️ Please set OPENROUTER_API_KEY in your .env")
     st.stop()
+os.environ["OPENAI_API_KEY"] = API_KEY
 
-# Initialize LLM using OpenRouter
-llm = ChatOpenAI(
-    model="gpt-3.5-turbo",
-    base_url="https://openrouter.ai/api/v1",
-    openai_api_key=openai_api_key
-)
+# App UI config
+st.set_page_config(page_title="Yabx Smart Financial Advisor", layout="centered")
+st.title("🌍 Smart Financial Advisor")
+st.markdown("""
+We're helping bridge financial access using your digital profile—with smart, data-driven advice.
+""")
 
-# Define the prompt
-template = """
-You are a helpful AI financial advisor.
+# Input form
+with st.form("info_form"):
+    income = st.number_input("📥 Monthly Income (₹)", min_value=0, step=500)
+    age = st.number_input("🎂 Age", min_value=18, max_value=100, step=1)
+    savings = st.number_input("💰 Current Savings (₹)", min_value=0, step=500)
+    debt = st.number_input("📉 Existing Debt (₹)", min_value=0, step=500)
+    risk = st.selectbox("⚖️ Risk Appetite", ["Low", "Medium", "High"])
+    phone_usage = st.selectbox(
+        "📱 Primary Mobile Usage",
+        ["Voice & SMS only", "Basic internet (2G/3G)", "Smartphone data & apps"]
+    )
+    financial_service = st.selectbox(
+        "✅ Desired Service",
+        ["Savings", "Credit/Loans", "Insurance", "All"]
+    )
+    region = st.selectbox(
+        "🌐 Region",
+        ["Rural/Underbanked", "Urban / Banked"]
+    )
+    submitted = st.form_submit_button("💡 Get Advice")
 
-The user provides:
-- Their monthly income
-- Monthly expenses
-- Any existing loans (type and amount)
-- Financial goal (e.g., buying a house, saving for education, etc.)
+if submitted:
+    st.spinner("Generating advice…")
+    template = """
+You are a smart financial advisor working with underserved users in emerging markets. Based on the following profile, give practical, tailored recommendations:
 
-Based on this information, provide a detailed and friendly financial advice plan. Suggest:
-- Budgeting improvements
-- Investment strategies
-- Loan suggestions or caution
-- Savings tips
+- Monthly Income: ₹{income}
+- Age: {age}
+- Savings: ₹{savings}
+- Debt: ₹{debt}
+- Risk Appetite: {risk}
+- Mobile Usage: {phone_usage}
+- Desired Service: {financial_service}
+- Region: {region}
 
-### USER DATA ###
-Income: {income}
-Expenses: {expenses}
-Loan Details: {loan_details}
-Financial Goal: {goal}
+Keep advice short, actionable, and culturally relevant.
 """
+    prompt = PromptTemplate.from_template(template)
 
-prompt = ChatPromptTemplate.from_template(template)
-chain = LLMChain(llm=llm, prompt=prompt)
+    llm = ChatOpenAI(
+        model="gpt-3.5-turbo",
+        base_url="https://openrouter.ai/api/v1",
+    )
+    chain = prompt | llm  # RunnableSequence
 
-# Streamlit UI
-st.set_page_config(page_title="💸 Financial Advisor", layout="centered")
-st.title("💬 Financial Advisor ")
+    response = chain.invoke({
+        "income": income,
+        "age": age,
+        "savings": savings,
+        "debt": debt,
+        "risk": risk,
+        "phone_usage": phone_usage,
+        "financial_service": financial_service,
+        "region": region,
+    })
+    st.markdown("### 🧠 Personalized Advice")
+    st.write(response.content)
 
-with st.form("advisor_form"):
-    income = st.text_input("Your Monthly Income (in ₹)", placeholder="e.g., 50000")
-    expenses = st.text_input("Your Monthly Expenses (in ₹)", placeholder="e.g., 20000")
-    loan_details = st.text_area("Existing Loans (type and amount)", placeholder="e.g., Education Loan ₹5,00,000")
-    goal = st.text_area("Your Financial Goal", placeholder="e.g., Buy a house in 5 years")
 
-    submitted = st.form_submit_button("Get Advice")
+    
 
-    if submitted:
-        if not income or not expenses or not goal:
-            st.warning("Please fill in all required fields.")
-        else:
-            with st.spinner("Generating your financial advice..."):
-                response = chain.invoke({
-                    "income": income,
-                    "expenses": expenses,
-                    "loan_details": loan_details,
-                    "goal": goal
-                })
-                st.success("✅ Here's your personalized financial advice:")
-                st.markdown(response["text"])
+
+
+
+
+
+
+
+

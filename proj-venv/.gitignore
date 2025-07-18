@@ -1,2 +1,14 @@
 # Created by venv; see https://docs.python.org/3/library/venv.html
-*.env
+# Ignore environment variables
+.env
+
+# Ignore Python virtual environments
+proj-venv/
+
+# Ignore VSCode settings
+.vscode/
+
+# Ignore cache and system files
+__pycache__/
+*.pyc
+
